@@ -1,0 +1,107 @@
+---
+name: Validate Configuration
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-yaml:
+    name: Lint YAML Files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Lint YAML files
+        run: yamllint -c .yamllint .
+
+  lint-ansible:
+    name: Lint Ansible Playbooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install ansible-lint
+        run: pip install ansible-lint
+
+      - name: Lint Ansible playbooks
+        run: |
+          if [ -d "ansible" ]; then
+            ansible-lint ansible/
+          else
+            echo "No ansible directory found, skipping ansible-lint"
+          fi
+
+  validate-kubernetes:
+    name: Validate Kubernetes Manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install kubeval
+        run: |
+          wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+          tar xf kubeval-linux-amd64.tar.gz
+          sudo cp kubeval /usr/local/bin
+
+      - name: Validate Kubernetes manifests
+        run: |
+          if [ -d "kubernetes" ]; then
+            find kubernetes -name "*.yaml" -type f -exec kubeval {} \;
+          else
+            echo "No kubernetes directory found, skipping validation"
+          fi
+
+  markdown-lint:
+    name: Lint Markdown Files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: markdownlint-cli
+        uses: nosborn/github-action-markdown-cli@v3.3.0
+        with:
+          files: .
+          config_file: .markdownlint.json
+
+  check-docs-links:
+    name: Check Documentation Links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
+
+      - name: Install awesome_bot
+        run: gem install awesome_bot
+
+      - name: Check README links
+        run: awesome_bot README.md --allow-redirect --allow-dupe
+        continue-on-error: true
+
+      - name: Check docs links
+        run: |
+          if [ -d "docs" ]; then
+            find docs -name "*.md" -type f -exec awesome_bot {} --allow-redirect --allow-dupe \;
+          else
+            echo "No docs directory found, skipping link check"
+          fi
+        continue-on-error: true
